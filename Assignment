@@ -1,0 +1,119 @@
+import java.math.BigInteger;
+import java.util.*;
+import java.util.regex.*;
+
+public class Main {
+
+    public static void main(String[] args) {
+        String jsonInput1 = "{\n" +
+                "    \"keys\": { \"n\": 4, \"k\": 3 },\n" +
+                "    \"1\": { \"base\": \"10\", \"value\": \"4\" },\n" +
+                "    \"2\": { \"base\": \"2\", \"value\": \"111\" },\n" +
+                "    \"3\": { \"base\": \"10\", \"value\": \"12\" },\n" +
+                "    \"6\": { \"base\": \"4\", \"value\": \"213\" }\n" +
+                "}";
+
+        String jsonInput2 = "{\n" +
+                "    \"keys\": { \"n\": 10, \"k\": 7 },\n" +
+                "    \"1\": { \"base\": \"6\", \"value\": \"13444211440455345511\" },\n" +
+                "    \"2\": { \"base\": \"15\", \"value\": \"aed7015a346d63\" },\n" +
+                "    \"3\": { \"base\": \"15\", \"value\": \"6aeeb69631c227c\" },\n" +
+                "    \"4\": { \"base\": \"16\", \"value\": \"e1b5e05623d881f\" },\n" +
+                "    \"5\": { \"base\": \"8\", \"value\": \"316034514573652620673\" },\n" +
+                "    \"6\": { \"base\": \"3\", \"value\": \"2122212201122002221120200210011020220200\" },\n" +
+                "    \"7\": { \"base\": \"3\", \"value\": \"20120221122211000100210021102001201112121\" },\n" +
+                "    \"8\": { \"base\": \"6\", \"value\": \"20220554335330240002224253\" },\n" +
+                "    \"9\": { \"base\": \"12\", \"value\": \"45153788322a1255483\" },\n" +
+                "    \"10\": { \"base\": \"7\", \"value\": \"1101613130313526312514143\" }\n" +
+                "}";
+
+        try {
+            System.out.println("Secret for Test Case 1: " + solveForConstantTerm(jsonInput1));
+            System.out.println("Secret for Test Case 2: " + solveForConstantTerm(jsonInput2));
+        } catch (Exception e) {
+            System.err.println("Error: " + e.getMessage());
+        }
+    }
+
+    private static int solveForConstantTerm(String jsonInput) throws Exception {
+        Map<String, String> parsedData = parseJson(jsonInput);
+
+        // Safely fetch "n" and "k" values
+        String nStr = parsedData.get("keys_n");
+        String kStr = parsedData.get("keys_k");
+
+        if (nStr == null || kStr == null) {
+            throw new Exception("Missing 'n' or 'k' values in the input.");
+        }
+
+        int n = Integer.parseInt(nStr);
+        int k = Integer.parseInt(kStr);
+
+        List<Point> points = new ArrayList<>();
+        for (int i = 1; i <= n; i++) {
+            String baseKey = i + "_base";
+            String valueKey = i + "_value";
+
+            if (parsedData.containsKey(baseKey) && parsedData.containsKey(valueKey)) {
+                int base = Integer.parseInt(parsedData.get(baseKey));
+                String value = parsedData.get(valueKey);
+                BigInteger decodedY = new BigInteger(value, base); // Handle large values using BigInteger
+                points.add(new Point(i, decodedY.intValue())); // Store the decoded value as int (assuming within range)
+            }
+        }
+
+        if (points.size() < k) {
+            throw new Exception("Not enough points to reconstruct the secret.");
+        }
+
+        return lagrangeInterpolation(points, k);
+    }
+
+    private static Map<String, String> parseJson(String json) {
+        Map<String, String> data = new HashMap<>();
+        Pattern nestedPattern = Pattern.compile("\"keys\":\\s*\\{\\s*\"n\":\\s*(\\d+),\\s*\"k\":\\s*(\\d+)\\s*}");
+        Pattern pointPattern = Pattern.compile("\"(\\d+)\":\\s*\\{\\s*\"base\":\\s*\"(\\d+)\",\\s*\"value\":\\s*\"(\\w+)\"\\s*}");
+
+        Matcher nestedMatcher = nestedPattern.matcher(json);
+        if (nestedMatcher.find()) {
+            data.put("keys_n", nestedMatcher.group(1));
+            data.put("keys_k", nestedMatcher.group(2));
+        }
+
+        Matcher pointMatcher = pointPattern.matcher(json);
+        while (pointMatcher.find()) {
+            String key = pointMatcher.group(1);
+            String base = pointMatcher.group(2);
+            String value = pointMatcher.group(3);
+            data.put(key + "_base", base);
+            data.put(key + "_value", value);
+        }
+
+        return data;
+    }
+
+    private static int lagrangeInterpolation(List<Point> points, int k) {
+        double constant = 0.0;
+
+        for (int i = 0; i < k; i++) {
+            double term = points.get(i).y;
+            for (int j = 0; j < k; j++) {
+                if (i != j) {
+                    term *= (0.0 - points.get(j).x) / (points.get(i).x - points.get(j).x);
+                }
+            }
+            constant += term;
+        }
+
+        return (int) Math.round(constant);
+    }
+
+    static class Point {
+        int x, y;
+
+        Point(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+}
